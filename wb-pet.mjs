@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// wb-pet 命令行：给 WorkBuddy 会话 / 脚本 / 钩子调用。
+// wb-pet 命令行：给会话 / 脚本 / 钩子调用。
 //
 //   node wb-pet.mjs up                     启动服务并打开桌宠页面
 //   node wb-pet.mjs state working          切换工作状态（thinking|working|result|waiting|success|error|idle）
@@ -7,7 +7,7 @@
 //   node wb-pet.mjs anim "写代码"           点播一个动画
 //   node wb-pet.mjs move "螃蟹走路"         走一段路
 //   node wb-pet.mjs whisper                立即碎碎念一句
-//   node wb-pet.mjs hook <EventName>       给 WorkBuddy 钩子用：从 stdin 读事件，映射成状态
+//   node wb-pet.mjs hook <EventName>       给钩子用：从 stdin 读事件，映射成状态
 
 import { spawn } from 'node:child_process';
 import path from 'node:path';
@@ -135,7 +135,7 @@ async function main() {
 }
 
 function usage() {
-  console.log(`大肥鱼 · WorkBuddy 桌宠
+  console.log(`大肥鱼 · 桌面宠物
 
   node wb-pet.mjs up                     启动服务并打开页面
   node wb-pet.mjs state <状态>            thinking|working|result|waiting|success|error|idle
@@ -145,7 +145,7 @@ function usage() {
   node wb-pet.mjs whisper                立即碎碎念
   node wb-pet.mjs roam                   全屏随便飞一下
   node wb-pet.mjs home                   叫回右下角
-  node wb-pet.mjs hook <EventName>       WorkBuddy 钩子入口`);
+  node wb-pet.mjs hook <EventName>       钩子入口（从 stdin 读事件）`);
 }
 
 main();

@@ -40,9 +40,8 @@ let serverChild = null;
 let hidden = false;
 let interactive = false;
 
-// 崩溃自愈：以前靠一个每 5 分钟跑一次的看门狗任务来判断「鱼没了就召唤」，
-// 那个任务每次启动 powershell 都会在屏幕上闪一下黑框。现在改成进程内自救：
-// 未捕获异常 / 渲染进程崩掉 → 自己 relaunch 一次。
+// 崩溃自愈：进程内自救，不依赖任何外部脚本或计划任务。
+// 未捕获异常 / 渲染进程崩掉 → 自己 relaunch 一次；启动 5 秒内又崩说明是稳定错误，不再重试。
 // 正常退出（托盘 / Ctrl+Alt+Q）走 app.quit()，不会碰到这里。
 // 刚启动 5 秒内就崩，说明是稳定的启动期错误，重启也没用，直接放弃，避免无限重启。
 const BOOT_AT = Date.now();

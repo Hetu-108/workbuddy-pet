@@ -105,7 +105,7 @@ if exist "%STARTVBS%" (
 )
 
 :auto_clean
-rem 老版本留下过每 5 分钟跑一次的看门狗任务，会闪黑框，顺手清掉
+rem 清掉老版本可能残留的轮询任务
 schtasks /delete /tn "WBPet-Watch" /f >nul 2>&1
 
 :launch

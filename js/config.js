@@ -1,4 +1,4 @@
-// wb-pet 配置（等价于 dsh-pet 0.3.7 的 assets/config.jsonc，去掉注释、按 WorkBuddy 场景裁剪）
+// wb-pet 配置（等价于 dsh-pet 0.3.7 的 assets/config.jsonc，去掉注释、按桌面场景裁剪）
 // 想换动作池 / 权重 / 物理手感，改这里即可；所有字段缺失时 js/pet.js 内部有兜底。
 
 export const DEFAULT_CONFIG = {
@@ -18,7 +18,7 @@ export const DEFAULT_CONFIG = {
       name: '大肥鱼',
       size: 560,                     // 宽度 px，高度自动 = size × 9/16（16:9 画布里人物约占 1/3 宽）
       fixedEnabled: false,           // true = 随机链不再自己转身 / 走开
-      workStatusEnabled: true,       // 跟随 WorkBuddy 会话状态切档位动画
+      workStatusEnabled: true,       // 跟随外部事件切档位动画
       whisperEnabled: true,          // 定时碎碎念（本地文案池）
       display: 'web',
     },

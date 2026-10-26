@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 把桌宠挂到 WorkBuddy 的钩子上：~/.workbuddy/settings.json 的 hooks 字段
+// 把桌宠挂到 AI 工具的钩子上：~/.workbuddy/settings.json 的 hooks 字段
 // （格式与 Claude Code 一致：UserPromptSubmit / PreToolUse / PostToolUse / Notification / Stop）
 //
 //   node install-hooks.mjs         安装（自动备份 settings.json）
@@ -71,6 +71,6 @@ fs.writeFileSync(SETTINGS, JSON.stringify(settings, null, 2) + '\n', 'utf8');
 console.log(remove ? '[wb-pet] 已卸载钩子' : '[wb-pet] 已挂上钩子');
 console.log('  配置文件：' + SETTINGS + (fs.existsSync(SETTINGS + '.wbpet-bak') ? '（首次备份：settings.json.wbpet-bak）' : ''));
 if (!remove) {
-  console.log('  需要重开 WorkBuddy 会话（或新开一个会话）钩子才生效。');
+  console.log('  需要重开一次对话（或新开一个）钩子才生效。');
   console.log('  桌宠服务要先跑起来：node wb-pet.mjs up');
 }
