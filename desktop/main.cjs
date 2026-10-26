@@ -40,18 +40,23 @@ let serverChild = null;
 let hidden = false;
 let interactive = false;
 
-// 「主动退出」标记：看门狗（watchdog.ps1）看到它就尊重你的选择，不会过一分钟又冒出来。
-// 启动时清掉；崩溃 / 被杀时不会写，所以下次看门狗会把它召唤回来。
-const STATE_DIR = process.env.LOCALAPPDATA
-  ? path.join(process.env.LOCALAPPDATA, 'wb-pet')
-  : path.join(APP_ROOT, '.state');
-const QUIT_FLAG = path.join(STATE_DIR, 'quit.flag');
-function setQuitFlag(on) {
-  try {
-    fs.mkdirSync(STATE_DIR, { recursive: true });
-    if (on) fs.writeFileSync(QUIT_FLAG, String(Date.now()));
-    else fs.rmSync(QUIT_FLAG, { force: true });
-  } catch { /* 标记失败不影响主流程 */ }
+// 崩溃自愈：以前靠一个每 5 分钟跑一次的看门狗任务来判断「鱼没了就召唤」，
+// 那个任务每次启动 powershell 都会在屏幕上闪一下黑框。现在改成进程内自救：
+// 未捕获异常 / 渲染进程崩掉 → 自己 relaunch 一次。
+// 正常退出（托盘 / Ctrl+Alt+Q）走 app.quit()，不会碰到这里。
+// 刚启动 5 秒内就崩，说明是稳定的启动期错误，重启也没用，直接放弃，避免无限重启。
+const BOOT_AT = Date.now();
+let RELAUNCHING = false;
+function relaunchSelf(reason) {
+  if (RELAUNCHING || SELFTEST) return;
+  if (Date.now() - BOOT_AT < 5000) {
+    try { console.error('[self-heal] 启动期崩溃，不再重启：', reason); } catch { /* noop */ }
+    return;
+  }
+  RELAUNCHING = true;
+  try { console.error('[self-heal] 自己重启一次：', reason); } catch { /* noop */ }
+  try { app.relaunch(); } catch { /* noop */ }
+  app.exit(1);
 }
 
 // 开发/排查用：--cdp-port=9222 或 WB_PET_CDP=9222 打开 DevTools 协议端口
@@ -178,12 +183,16 @@ function setAutostart(on) {
   try {
     if (on) {
       const exe = process.execPath;
+      // VBScript 里字符串内部的引号要写成两个，所以 "a" 要变成 """a"""
+      const q = (s) => '"' + String(s).replace(/"/g, '""') + '"';
+      const cmd = q(exe) + ' ' + q(__dirname);
       const vbs = [
         'Set sh = CreateObject("WScript.Shell")',
-        `sh.Run """${exe}"" ""${__dirname}""", 0, False`,
+        'sh.Run ' + q(cmd) + ', 0, False',
       ].join('\r\n');
       fs.mkdirSync(AUTOSTART_DIR, { recursive: true });
-      fs.writeFileSync(AUTOSTART_LNK, vbs, 'utf8');
+      // wscript 按系统 ANSI 读脚本，用 UTF-8 存会让中文路径变乱码 —— 改存 UTF-16LE + BOM
+      fs.writeFileSync(AUTOSTART_LNK, '\ufeff' + vbs, 'utf16le');
     } else if (fs.existsSync(AUTOSTART_LNK)) {
       fs.unlinkSync(AUTOSTART_LNK);
     }
@@ -310,8 +319,6 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(async () => {
     if (app.isPackaged) { /* 打包后同样是本地页面 */ }
-    // 起来了就说明「主动退出」不再成立，清掉标记，看门狗恢复待命
-    if (!SELFTEST) setQuitFlag(false);
     // 透明窗口需要允许媒体自动播放与本地请求
     session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => {
       cb(permission === 'media' || permission === 'notifications');
@@ -333,12 +340,18 @@ if (!app.requestSingleInstanceLock()) {
 
   app.on('window-all-closed', () => app.quit());
   app.on('will-quit', () => {
-    // 只有走正常退出的路径才会到这里；崩溃 / 被 taskkill 不会，看门狗据此区分
-    if (!SELFTEST) setQuitFlag(true);
     globalShortcut.unregisterAll();
     if (serverChild && !serverChild.killed) {
       try { serverChild.kill(); } catch { /* noop */ }
     }
+  });
+
+  // 主进程兜不住的异常 → 自己回来
+  process.on('uncaughtException', (e) => relaunchSelf('uncaughtException: ' + (e && e.message)));
+  // 渲染进程崩了（GPU 崩了 Electron 会自己重建，不管）→ 整只鱼重开
+  app.on('render-process-gone', (_e, _wc, d) => {
+    if (d && d.reason === 'clean-exit') return;
+    relaunchSelf('render-process-gone: ' + (d && d.reason));
   });
 }
 

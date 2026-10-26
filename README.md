@@ -21,18 +21,28 @@
 
 ## 30 秒上手
 
-**① 补一个 Electron**
+**① 双击 `安装.bat`**
 
-`runtime/` 是 325MB 的运行时，没有提交进仓库。下载
-[Electron v38.8.6](https://github.com/electron/electron/releases/tag/v38.8.6) 的
-`electron-v38.8.6-win32-x64.zip`，解压到 `runtime/electron/` —— 解压后该目录下应该直接看到 `electron.exe`。
+第一次运行会自动从国内镜像（npmmirror）拉 Electron 运行时（约 100MB，一般 20 秒内），
+装到 `runtime/electron/` 并直接启动。装完之后就是秒开，**不用再手动下载任何东西**。
 
-**② 双击启动**
+> 只有 Windows 10 1803 及以上能自动装（要用系统自带的 `curl` 和 `tar`）。
+> 更老的系统看下面「装不上怎么办」。
+
+**② 以后双击 `启动桌宠.vbs`**
 
 | 双击 | 什么时候用 |
 | --- | --- |
 | `启动桌宠.vbs` | 平时用这个，无窗口静默启动 |
 | `启动桌宠.bat` | 出问题时用，能看到日志 |
+| `安装.bat` | 换电脑 / 重装 / 运行时丢了，再跑一次即可 |
+
+**装不上怎么办**
+
+`安装.bat` 会告诉你是下载失败还是解压失败。下载失败可以直接手动拿运行时：
+[electron-v38.8.6-win32-x64.zip](https://github.com/electron/electron/releases/tag/v38.8.6)
+（或国内镜像 `https://registry.npmmirror.com/-/binary/electron/38.8.6/electron-v38.8.6-win32-x64.zip`），
+解压后把里面所有文件放进 `runtime/electron/`，该目录下要能直接看到 `electron.exe`。
 
 **③ 摸一下它**
 
@@ -87,7 +97,7 @@
 | 操作 | 效果 |
 | --- | --- |
 | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>P</kbd> | 藏起来 / 叫出来 |
-| <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Q</kbd> | 退出（并告诉看门狗"是我自己关的"） |
+| <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Q</kbd> | 退出（不会自己诈尸，要它回来就再双击一次） |
 | 托盘 → 显示/隐藏 | 同上 |
 | 托盘 → 回家 | 回到右下角初始位置 |
 | 托盘 → 说句话 | 随机碎碎念一句 |
@@ -170,29 +180,26 @@ Get-ScheduledTask    -TaskName "WBPet"                              # 看状态
 Unregister-ScheduledTask -TaskName "WBPet" -Confirm:$false          # 彻底移除
 ```
 
-为什么必须走计划任务：从编辑器或终端里直接起的子进程会随宿主会话被回收，鱼才会「过一会儿就没了」。
-计划任务由系统服务拉起，独立于任何会话。
+为什么不能直接在编辑器里 `electron .` 起：从编辑器或终端里起的子进程会随宿主会话被回收，
+鱼才会「过一会儿就没了」。走登录自启由系统拉起，独立于任何会话。
+`安装.bat` 会先试计划任务，建不了就退化成启动文件夹里的 `大肥鱼桌宠.vbs`，效果一样。
 
 <details>
-<summary><b>自动召唤：你重开 WorkBuddy 时它会自己回来（每 5 分钟瞄一眼）</b></summary>
+<summary><b>为什么没有「每 5 分钟轮询的看门狗」了</b></summary>
 
-第二个计划任务 `WBPet-Watch` 单次约 1 秒，规则只有三条：
+早期版本有个 `WBPet-Watch` 计划任务，每 5 分钟跑一次 PowerShell，检查「WorkBuddy 开着但鱼不见了没」。
+问题是它每次启动都会在屏幕上**闪一下黑框**——Windows 会先创建控制台窗口，`-WindowStyle Hidden`
+来不及生效。而且它依赖 PowerShell，规避手段 `conhost --headless` 还是 Win11 专属。
 
-| 情况 | 行为 |
+现在这条路整个去掉了，换成两件更轻的事：
+
+| 原来靠看门狗 | 现在 |
 | --- | --- |
-| 你重开了一次 WorkBuddy，而桌宠不在 | **自动召唤回来**（一般 5 分钟内出现） |
-| 你自己点了托盘「退出」/ <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Q</kbd> | **一概不动**，直到下次重开 WorkBuddy |
-| 桌宠已经在跑（绝大多数时候） | 什么都不做，直接退出 |
+| 登录后常驻 | 登录自启（计划任务，建不了就退化成启动文件夹里的 `.vbs`）。`electron.exe` 是 GUI 程序，本来就不带控制台 |
+| 崩了能自己回来 | 主进程自救：未捕获异常 / 渲染进程崩掉 → `app.relaunch()` 重开一次；启动 5 秒内就崩说明是稳定错误，不再无脑重启 |
+| 主动退出后别诈尸 | 正常退出走 `app.quit()`，压根不会触发 relaunch |
 
-「主动退出」会写一个标记到 `%LOCALAPPDATA%\wb-pet\quit.flag`，看门狗看到它就收手；
-检测到 WorkBuddy 是**新的一次会话**（进程启动时间变了）才把标记清掉。崩溃 / 被 taskkill 不写这个标记，所以那种情况会被救回。
-
-```powershell
-Get-Content "$env:LOCALAPPDATA\wb-pet\watchdog.log" -Tail 20   # 它在干什么
-Disable-ScheduledTask -TaskName "WBPet-Watch"                   # 临时停掉自动召唤
-```
-
-嫌 5 分钟太慢：重新注册时改 `-RepetitionInterval`（别低于 2 分钟，收益很小）。
+副作用是好的：**整个项目不再依赖 PowerShell**，也不再需要 WorkBuddy 开着——它完全独立。
 
 </details>
 
