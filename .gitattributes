@@ -1,0 +1,15 @@
+# 统一换行，避免 Windows/Linux 拉下来就跑不起来
+* text=auto
+
+# 这三类是给 Windows 脚本引擎直接读的，必须是 CRLF，否则 cmd/wscript 会静默失败
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.vbs text eol=crlf
+*.ps1 text eol=crlf
+
+# 二进制，别做任何转换
+*.webm binary
+*.png binary
+*.jpg binary
+*.ttf binary
+*.ico binary

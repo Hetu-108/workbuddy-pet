@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8" /><title>measure</title></head>
+<body style="margin:0;background:#000">
+<canvas id="c" width="640" height="360"></canvas>
+<script>
+const CANVAS_W = 640, CANVAS_H = 360;
+const cvs = document.getElementById('c');
+const ctx = cvs.getContext('2d', { willReadFrequently: true });
+
+function grab(video) {
+  ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+  ctx.drawImage(video, 0, 0, CANVAS_W, CANVAS_H);
+  return ctx.getImageData(0, 0, CANVAS_W, CANVAS_H).data;
+}
+
+function pack(mask) {
+  let bin = '';
+  for (let i = 0; i < mask.length; i += 8) {
+    let byte = 0;
+    for (let b = 0; b < 8; b++) byte = (byte << 1) | (mask[i + b] ? 1 : 0);
+    bin += String.fromCharCode(byte);
+  }
+  return btoa(bin);
+}
+
+async function measure(name, MW, MH, samples) {
+  const v = document.createElement('video');
+  v.muted = true; v.playsInline = true; v.preload = 'auto';
+  v.src = '../assets/webm/' + encodeURIComponent(name) + '.webm';
+  await new Promise((res, rej) => {
+    v.addEventListener('loadeddata', res, { once: true });
+    v.addEventListener('error', () => rej(new Error('load fail')), { once: true });
+    v.load();
+  });
+  try { await v.play(); } catch { /* noop */ }
+  const dur = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : 2;
+  const cellW = CANVAS_W / MW, cellH = CANVAS_H / MH;
+  const cellPx = cellW * cellH;
+  const framesOn = new Uint8Array(MW * MH);   // 该格"有内容"的帧数
+  const bestCov = new Uint8Array(MW * MH);    // 最高帧覆盖率（0-255）
+  const cnt = new Uint16Array(MW * MH);
+  let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1;
+
+  for (let i = 0; i < samples; i++) {
+    const t = dur * (0.08 + (0.84 * i) / Math.max(1, samples - 1));
+    v.currentTime = Math.min(t, dur - 0.06);
+    await new Promise((r) => {
+      const done = () => { v.removeEventListener('seeked', done); r(); };
+      v.addEventListener('seeked', done);
+      setTimeout(done, 500);
+    });
+    const d = grab(v);
+    cnt.fill(0);
+    for (let y = 0; y < CANVAS_H; y++) {
+      const rowBase = y * CANVAS_W;
+      const gy = Math.min(MH - 1, (y / cellH) | 0);
+      for (let x = 0; x < CANVAS_W; x++) {
+        if (d[(rowBase + x) * 4 + 3] > 24) {
+          if (x < x0) x0 = x; if (x > x1) x1 = x;
+          if (y < y0) y0 = y; if (y > y1) y1 = y;
+          cnt[gy * MW + Math.min(MW - 1, (x / cellW) | 0)]++;
+        }
+      }
+    }
+    for (let i2 = 0; i2 < cnt.length; i2++) {
+      const cov = Math.min(255, Math.round((cnt[i2] / cellPx) * 255));
+      if (cov > bestCov[i2]) bestCov[i2] = cov;
+      if (cov > 20) framesOn[i2]++;   // 单帧覆盖率 > 8% 记为"这一帧有"
+    }
+  }
+  v.pause(); v.removeAttribute('src'); v.load();
+
+  // 判据：过半帧都有内容，且至少某一帧覆盖到 15%（排除只有飘过一丝像素的边缘格）
+  const need = Math.ceil(samples * 0.5);
+  const mask = new Uint8Array(MW * MH);
+  for (let i = 0; i < mask.length; i++) {
+    mask[i] = framesOn[i] >= need && bestCov[i] > 38 ? 1 : 0;
+  }
+
+  return { name, x0, y0, x1, y1, b64: pack(mask) };
+}
+
+window.runMask = async (names, MW, MH, samples) => {
+  const out = [];
+  for (let i = 0; i < names.length; i++) {
+    try { out.push(await measure(names[i], MW, MH, samples || 4)); }
+    catch (e) { out.push({ name: names[i], error: String(e.message || e) }); }
+    if (i % 20 === 19) console.log('... ' + (i + 1) + '/' + names.length);
+  }
+  return out;
+};
+</script>
+</body>
+</html>

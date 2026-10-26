@@ -1,0 +1,7 @@
+{
+  "name": "wb-pet-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "大肥鱼桌面宠物（WorkBuddy）— 透明置顶全屏窗口",
+  "main": "main.cjs"
+}

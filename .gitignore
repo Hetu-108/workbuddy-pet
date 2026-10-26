@@ -1,0 +1,23 @@
+# ---- Electron 运行时：325MB 的二进制，不进仓库 ----
+# 需要自备：解压到 runtime/electron/ 下，页面里用的是 ./runtime/electron/electron.exe
+# 版本：38.8.6（https://github.com/electron/electron/releases/tag/v38.8.6）
+runtime/
+
+# ---- 依赖（本项目零依赖，留个兜底） ----
+node_modules/
+
+# ---- 本机状态：看门狗标记、日志、计划任务运行痕迹 ----
+.state/
+*.log
+quit.flag
+
+# ---- 开发/调试产物 ----
+dev/hitmask.json
+dev/*.png
+desktop/selftest*.png
+desktop/screen*.png
+
+# ---- 系统 ----
+Thumbs.db
+.DS_Store
+desktop.ini
