@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>hero</title>
+<style>
+  @font-face {
+    font-family: 'Candy';
+    src: url('font.ttf') format('truetype');
+    font-display: block;
+  }
+
+  :root {
+    --ink: #1B2340;
+    --ink-2: #3B4767;
+    --ink-3: #6C799C;
+    --ink-4: #98A2BE;
+    --brand: #3F4F8F;
+    --brand-2: #5568A8;
+    --line: #E4E9F5;
+    --card-shadow: 0 28px 64px -28px rgba(31, 45, 92, .34), 0 2px 8px rgba(31, 45, 92, .05);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 1440px;
+    height: 600px;
+    background: #fff;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
+  }
+
+  .canvas {
+    position: relative;
+    width: 1440px;
+    height: 600px;
+    overflow: hidden;
+    background:
+      radial-gradient(760px 700px at 79% 40%, rgba(120, 148, 220, .30), rgba(120, 148, 220, 0) 62%),
+      linear-gradient(118deg, #FFFFFF 0%, #F8FAFF 46%, #ECF0FA 100%);
+    font-family: 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  }
+
+  /* 极淡的点阵，给纯渐变一点"纸"的质感 */
+  .grid {
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(rgba(63, 79, 143, .13) 1px, transparent 1.2px);
+    background-size: 26px 26px;
+    -webkit-mask-image: linear-gradient(105deg, rgba(0,0,0,.85) 0%, rgba(0,0,0,.35) 42%, transparent 68%);
+            mask-image: linear-gradient(105deg, rgba(0,0,0,.85) 0%, rgba(0,0,0,.35) 42%, transparent 68%);
+  }
+
+  /* ---------- 左：文字 ---------- */
+  .copy {
+    position: absolute;
+    left: 92px;
+    top: 0;
+    height: 600px;
+    width: 720px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .eyebrow {
+    font-size: 12.5px;
+    font-weight: 700;
+    letter-spacing: .26em;
+    color: var(--ink-4);
+    margin-bottom: 22px;
+  }
+
+  h1 {
+    font-family: 'Candy', 'Microsoft YaHei', sans-serif;
+    font-size: 78px;
+    line-height: 1.05;
+    letter-spacing: .02em;
+    background: linear-gradient(172deg, #202A4D 0%, #1B2340 52%, #2C3A6B 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    margin-bottom: 24px;
+  }
+
+  .desc {
+    font-size: 22px;
+    line-height: 1.76;
+    color: var(--ink-2);
+    letter-spacing: .01em;
+  }
+
+  .desc em {
+    font-style: normal;
+    color: var(--brand);
+    font-weight: 600;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 34px;
+  }
+
+  .chip {
+    font-size: 16.5px;
+    font-weight: 600;
+    color: var(--brand);
+    padding: 9px 17px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .82);
+    border: 1px solid rgba(85, 104, 168, .22);
+    letter-spacing: .02em;
+  }
+
+
+  /* ---------- 右：桌面卡（卡片 = 一块小桌面，角色站在任务栏上） ---------- */
+  .card {
+    position: absolute;
+    right: 96px;
+    top: 44px;
+    width: 452px;
+    height: 512px;
+    border-radius: 30px;
+    background: linear-gradient(176deg, #FFFFFF 0%, #F6F9FF 55%, #E6EDFB 100%);
+    border: 1px solid #E6ECF9;
+    box-shadow: var(--card-shadow), inset 0 1px 0 rgba(255, 255, 255, .9);
+    overflow: hidden;
+  }
+
+  /* 角色背后的一圈柔光，制造纵深，不至于贴在卡片上 */
+  .halo {
+    position: absolute;
+    left: 50%;
+    top: 84px;
+    width: 320px;
+    height: 320px;
+    transform: translateX(-50%);
+    border-radius: 50%;
+    background: radial-gradient(50% 50% at 50% 50%, rgba(126, 150, 220, .34), rgba(126, 150, 220, 0) 70%);
+  }
+
+  .pet {
+    position: absolute;
+    left: 50%;
+    bottom: 42px;
+    height: 372px;
+    transform: translateX(-50%);
+    filter: drop-shadow(0 12px 14px rgba(42, 58, 110, .18));
+    z-index: 2;
+  }
+
+  /* 脚下阴影，落在任务栏上沿 */
+  .floor {
+    position: absolute;
+    left: 50%;
+    bottom: 34px;
+    width: 250px;
+    height: 34px;
+    transform: translateX(-50%);
+    background: radial-gradient(50% 50% at 50% 50%, rgba(52, 74, 148, .38), rgba(52, 74, 148, 0) 70%);
+    filter: blur(3px);
+    z-index: 1;
+  }
+
+  /* 任务栏：一句"这是个桌面"就靠它 */
+  .taskbar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, .72), rgba(255, 255, 255, .95));
+    border-top: 1px solid rgba(63, 79, 143, .13);
+    z-index: 3;
+  }
+
+  .taskbar .left { display: flex; align-items: center; gap: 9px; }
+  .taskbar .left img { width: 19px; height: 19px; opacity: .92; }
+  .taskbar .left span {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    color: rgba(63, 79, 143, .62);
+  }
+  .taskbar .right {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    color: rgba(63, 79, 143, .55);
+  }
+  .taskbar .right i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #4FC08D;
+    box-shadow: 0 0 0 3px rgba(79, 192, 141, .18);
+  }
+
+  .bubble {
+    position: absolute;
+    top: 22px;
+    left: 22px;
+    max-width: 196px;
+    padding: 12px 17px 13px;
+    background: #fff;
+    border-radius: 15px 15px 15px 4px;
+    border: 1px solid rgba(97, 116, 176, .16);
+    box-shadow: 0 10px 22px -12px rgba(38, 55, 110, .30);
+    font-size: 15px;
+    line-height: 1.55;
+    color: #33416A;
+    letter-spacing: .01em;
+    z-index: 4;
+  }
+
+  .bubble span { color: var(--brand); }
+</style>
+</head>
+<body>
+<div class="canvas">
+  <div class="grid"></div>
+
+  <div class="copy">
+    <div class="eyebrow">WORKBUDDY&nbsp;&nbsp;DESKTOP&nbsp;&nbsp;PET</div>
+    <h1>大肥鱼桌宠</h1>
+    <p class="desc">
+      106 段透明动画，铺满整个桌面。<br>
+      平时待在右下角，你写代码，它<em>就在旁边陪着</em>。
+    </p>
+
+    <div class="chips">
+      <span class="chip">全屏漫游</span>
+      <span class="chip">抓起就扔</span>
+      <span class="chip">轮廓精确命中</span>
+      <span class="chip">六档工作状态</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="halo"></div>
+    <div class="floor"></div>
+
+    <div class="bubble">
+      今天也<span>一起写代码</span>吧～
+    </div>
+
+    <img class="pet" src="../../docs/pet-2x.png" alt="">
+
+    <div class="taskbar">
+      <div class="left">
+        <img src="../../docs/logo-cut.png" alt="">
+        <span>大肥鱼</span>
+      </div>
+      <div class="right">
+        <span>23:44</span>
+        <i></i>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

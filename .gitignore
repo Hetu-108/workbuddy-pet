@@ -14,6 +14,11 @@ quit.flag
 # ---- 开发/调试产物 ----
 dev/hitmask.json
 dev/*.png
+# 设计稿的中间渲染结果（成品在 docs/）；字体是从 assets/fonts 复制的副本；预览产物
+dev/design/_*.png
+dev/design/font.ttf
+_readme-preview.html
+dev/_readme-preview.html
 desktop/selftest*.png
 desktop/screen*.png
 

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>states</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 1440px;
+    height: 300px;
+    background: #fff;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .canvas {
+    position: relative;
+    width: 1320px;
+    height: 300px;
+    overflow: hidden;
+    background:
+      radial-gradient(900px 420px at 50% 118%, rgba(120, 148, 220, .22), rgba(120, 148, 220, 0) 62%),
+      linear-gradient(180deg, #FFFFFF 0%, #F7F9FE 60%, #EEF2FB 100%);
+    font-family: 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', sans-serif;
+    padding: 30px 60px 0;
+  }
+
+  .row {
+    display: flex;
+    gap: 18px;
+    justify-content: space-between;
+  }
+
+  .cell {
+    width: 180px;
+    flex: 0 0 180px;
+  }
+
+  .media {
+    position: relative;
+    height: 190px;
+    border-radius: 18px;
+    background: linear-gradient(180deg, #FFFFFF 0%, #F4F7FE 100%);
+    border: 1px solid #E7ECF8;
+    box-shadow: 0 12px 26px -18px rgba(31, 45, 92, .38);
+    overflow: hidden;
+  }
+
+  /* 角色在 640×360 素材里只占中间一块，放大并偏移，把空白裁掉 */
+  .media video {
+    position: absolute;
+    width: 350px;
+    left: -85px;
+    top: -9px;
+  }
+
+  .media::after {
+    /* 脚下投影，压住视频底部，让角色"站"在卡片里 */
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: 12px;
+    width: 96px;
+    height: 14px;
+    transform: translateX(-50%);
+    background: radial-gradient(50% 50% at 50% 50%, rgba(52, 74, 148, .34), rgba(52, 74, 148, 0) 70%);
+    filter: blur(2px);
+    z-index: 2;
+  }
+
+  .label {
+    margin-top: 14px;
+    text-align: center;
+  }
+
+  .label b {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #2A3457;
+    letter-spacing: .02em;
+  }
+
+  .label b i {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 0 3px rgba(120, 140, 210, .14);
+  }
+
+  .label span {
+    display: block;
+    margin-top: 4px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .2em;
+    color: #A3ACC5;
+  }
+</style>
+</head>
+<body>
+<div class="canvas">
+  <div class="row">
+    <div class="cell">
+      <div class="media"><video src="../../assets/webm/工作状态-思考冒泡.webm" muted loop autoplay playsinline></video></div>
+      <div class="label"><b style="color:#5B6FA8"><i></i>思考</b><span>THINKING</span></div>
+    </div>
+    <div class="cell">
+      <div class="media"><video src="../../assets/webm/工作状态-忙碌点按.webm" muted loop autoplay playsinline></video></div>
+      <div class="label"><b style="color:#4A5FBF"><i></i>忙碌</b><span>WORKING</span></div>
+    </div>
+    <div class="cell">
+      <div class="media"><video src="../../assets/webm/工作状态-清点归档.webm" muted loop autoplay playsinline></video></div>
+      <div class="label"><b style="color:#3A9A93"><i></i>整理</b><span>RESULT</span></div>
+    </div>
+    <div class="cell">
+      <div class="media"><video src="../../assets/webm/工作状态-原地踱步张望.webm" muted loop autoplay playsinline></video></div>
+      <div class="label"><b style="color:#C79A3E"><i></i>等待</b><span>WAITING</span></div>
+    </div>
+    <div class="cell">
+      <div class="media"><video src="../../assets/webm/工作状态-雀跃庆祝.webm" muted loop autoplay playsinline></video></div>
+      <div class="label"><b style="color:#3F9D6B"><i></i>完成</b><span>SUCCESS</span></div>
+    </div>
+    <div class="cell">
+      <div class="media"><video src="../../assets/webm/工作状态-垂头叹气冒汗.webm" muted loop autoplay playsinline></video></div>
+      <div class="label"><b style="color:#C8594F"><i></i>出错</b><span>ERROR</span></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

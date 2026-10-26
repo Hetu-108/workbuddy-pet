@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="146" height="28" viewBox="0 0 146 28" role="img" aria-label="Windows 10 / 11">
+  <rect x="0.5" y="0.5" width="145" height="27" rx="13.5" fill="#FFFFFF" stroke="#E1E7F4"/>
+  <circle cx="14" cy="14" r="3.5" fill="#4A5FBF"/>
+  <text x="25" y="18.5" font-family="Segoe UI, SF Pro Text, PingFang SC, Microsoft YaHei, sans-serif"
+        font-size="12" font-weight="600" letter-spacing="0.3" fill="#3F4F8F">Windows 10 / 11</text>
+</svg>
