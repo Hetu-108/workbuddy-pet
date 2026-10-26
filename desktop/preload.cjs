@@ -12,4 +12,6 @@ contextBridge.exposeInMainWorld('wbDesktop', {
   quit: () => ipcRenderer.send('wb:quit'),
   /** 窗口尺寸 / 工作区信息（首帧布局用） */
   getWorkArea: () => ipcRenderer.invoke('wb:workarea'),
+  /** 把整个窗口挪到屏幕坐标 (x, y)：窗口跟随角色移动，避免全屏透明窗的合成开销 */
+  moveTo: (x, y) => ipcRenderer.send('wb:move', x, y),
 });

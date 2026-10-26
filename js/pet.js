@@ -24,6 +24,14 @@ const WORK_STATUS_INDEX = { thinking: 0, working: 1, result: 2, waiting: 3, succ
 
 const now = () => performance.now();
 
+// ---- 提交节流 ----
+// 屏幕是 165Hz，但素材本身只有 ~24fps。原来每个 rAF（每秒 165 次）都改一次位置，
+// 透明窗就得每秒重新合成 165 次整屏；在一张 2560×1600 的 per-pixel-alpha 图层上，
+// 这等于每秒推 2.6GB 的像素，弱核显会直接把整机拖卡。
+// 现在位置提交限到 45fps（拖拽 90fps 保手感），画面看不出差别，合成次数降到 1/4。
+const PAINT_GAP = 1000 / 45;
+const PAINT_GAP_DRAG = 1000 / 90;
+
 export class Pet {
   /**
    * @param {object} o
@@ -150,13 +158,32 @@ export class Pet {
 
   _applyAnchor() {
     this.pos = this._anchorPixel();
-    this._applyPos();
+    this._applyPos(true);
   }
 
-  _applyPos() {
-    // 用 transform 而不是 left/top：移动时只走合成器，不触发布局/重绘（漫游和抛掷每帧都在调）
-    this.root.style.transform =
-      'translate3d(' + Math.round(this.pos.x) + 'px,' + Math.round(this.pos.y) + 'px,0)';
+  /**
+   * 把位置提交到屏幕上。
+   *  - 取整后没变就一次都不提交（弹簧收敛、原地晃动时避免无意义重合成）
+   *  - 有变化也按 PAINT_GAP 限流，关键时刻传 force=true 保证落点精确
+   */
+  _applyPos(force = false) {
+    const x = Math.round(this.pos.x);
+    const y = Math.round(this.pos.y);
+    if (!force && x === this._px && y === this._py) return;
+    const t = now();
+    const gap = this.dragging ? PAINT_GAP_DRAG : PAINT_GAP;
+    if (!force && t - (this._paintAt || 0) < gap) { this._paintPending = true; return; }
+    this._paintAt = t;
+    this._paintPending = false;
+    this._px = x;
+    this._py = y;
+    // 用 transform 而不是 left/top：移动时只走合成器，不触发布局/重绘
+    this.root.style.transform = 'translate3d(' + x + 'px,' + y + 'px,0)';
+  }
+
+  /** 运动循环收尾：把最后一帧强制画准，避免限流把落点差 1~2px */
+  _flushPos() {
+    if (this._paintPending) this._applyPos(true);
   }
 
   /**
@@ -194,7 +221,7 @@ export class Pet {
     } else {
       this.pos = this._anchorPixel();
     }
-    this._applyPos();
+    this._applyPos(true);
   }
 
   // ---------------- 视频双缓冲 ----------------
@@ -263,12 +290,20 @@ export class Pet {
     const t0 = now();
     const target = el;
     const mirror = this.facing === 'right' ? 'scaleX(-1) ' : 'scaleX(1) ';
+    let paintAt = 0;
     const step = () => {
-      const u = clamp((now() - t0) / SQ_DURATION_MS, 0, 1);
-      const s = squashScale(u, squash);
-      target.style.transform = mirror + 'scaleY(' + s.toFixed(4) + ')';
-      if (u < 1) this.squashRaf = requestAnimationFrame(step);
-      else target.style.transform = mirror + 'scaleY(1)';
+      const t = now();
+      const u = clamp((t - t0) / SQ_DURATION_MS, 0, 1);
+      if (u >= 1) {
+        target.style.transform = mirror + 'scaleY(1)';
+        return;
+      }
+      // 同样限流：Q 弹只要看着顺，不需要 165 次/秒
+      if (t - paintAt >= 20) {
+        paintAt = t;
+        target.style.transform = mirror + 'scaleY(' + squashScale(u, squash).toFixed(3) + ')';
+      }
+      this.squashRaf = requestAnimationFrame(step);
     };
     this.squashRaf = requestAnimationFrame(step);
   }
@@ -386,7 +421,7 @@ export class Pet {
       else {
         this.moveRaf = null;
         this.pos.x = pm.targetX - this.size / 2;
-        this._applyPos();
+        this._applyPos(true);
       }
     };
     this.moveRaf = requestAnimationFrame(step);
@@ -447,6 +482,7 @@ export class Pet {
         this.roamRaf = requestAnimationFrame(step);
       } else {
         this.roamRaf = null;
+        this._applyPos(true);
         if (targetY < groundY - 6) this._startThrow(0, 40); // 半空的轻轻沉下去
         else this._recover();
       }
@@ -535,6 +571,7 @@ export class Pet {
     if (this._springRaf) cancelAnimationFrame(this._springRaf);
     this._springRaf = null;
     this.dragTarget = null;
+    this._flushPos();
   }
 
   _onUp(e) {
@@ -557,7 +594,7 @@ export class Pet {
       const b = this._bounds();
       this.pos.x = clamp(this.pos.x, b.minX, b.maxX);
       this.pos.y = clamp(this.pos.y, b.minY, b.maxY);
-      this._applyPos();
+      this._applyPos(true);
       this._recover();
       return;
     }
@@ -605,6 +642,7 @@ export class Pet {
       } else {
         this.throwRaf = null;
         this.throwState = null;
+        this._applyPos(true);
         this._recover();
       }
     };
