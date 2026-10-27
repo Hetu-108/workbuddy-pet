@@ -11,10 +11,13 @@ let py = -1;
 let forced = 0;        // 强制接管的引用计数（拖拽、菜单打开）
 let holdUntil = 0;     // 保持接管的截止时间
 let holdTimer = 0;
+let wheelMuteUntil = 0; // 滚动期间别抢指针：光标停在鱼身上滚页面时，不能一滚一让再抢回去
 
 function setInteractive(next) {
   if (next === interactive) return;
   interactive = next;
+  // 暴露到 DOM 上，方便自检和排查时读当前是否占着指针
+  try { document.body.dataset.petCapturing = next ? '1' : '0'; } catch { /* noop */ }
   try { window.wbDesktop.setInteractive(next); } catch { /* noop */ }
 }
 
@@ -23,6 +26,9 @@ function petHit(x, y) {
   for (const p of window.__pets || []) {
     if (!p) continue;
     if (p.dragging || p.throwRaf != null) return true;
+    // 自动移动中（漫游 / 走一段）不接管：鱼一直在动，根本压不准，
+    // 而接管会把指针从下面的窗口抢走 —— 鱼满屏飞时滚轮滚不动就是这么来的。
+    if (p.roamRaf != null || p.moveRaf != null || p.pendingMove) continue;
     if (typeof p.hits === 'function' && p.hits(x, y)) return true;
   }
   return false;
@@ -48,9 +54,20 @@ function flush() {
   raf = 0;
   if (forced > 0) { setInteractive(true); return; }
   if (holdTimer) { clearTimeout(holdTimer); holdTimer = 0; }
+  // 滚动冷却期内一直让路，冷却结束再自己重测一次（否则要等用户动鼠标才恢复）
+  const t = performance.now();
+  if (t < wheelMuteUntil) {
+    setInteractive(false);
+    holdTimer = window.setTimeout(() => { holdTimer = 0; flush(); }, wheelMuteUntil - t + 10);
+    return;
+  }
   if (hitTest(px, py)) {
     holdUntil = performance.now() + HOLD_MS;
     setInteractive(true);
+    // 关键：命中后就再没人来重测了。鱼会自己走开，而鼠标可能一动不动，
+    // 没有新的 mousemove 就永远不会重新判定，窗口会一直占着指针（滚轮、点击全被吞）。
+    // 所以到期必须自己再跑一次 flush。
+    holdTimer = window.setTimeout(() => { holdTimer = 0; flush(); }, HOLD_MS + 8);
     return;
   }
   const left = holdUntil - performance.now();
@@ -79,6 +96,15 @@ export function initDesktop() {
   window.addEventListener('mouseout', (e) => {
     if (e.relatedTarget === null) { holdUntil = 0; setInteractive(false); }
   });
+  // 滚轮永远优先给下面的窗口。命中判定有 140ms 的 hold，用户正好在鱼身上滚页面时
+  // 会先被吞一下；收到滚轮就立刻让路，并在连续滚动期间一直保持穿透。
+  window.addEventListener('wheel', () => {
+    if (forced > 0) return; // 菜单 / 拖拽期间不干预
+    wheelMuteUntil = performance.now() + 700;
+    holdUntil = 0;
+    setInteractive(false);
+    schedule();
+  }, { passive: true, capture: true });
   // 切走焦点时别把鼠标锁在窗口里（拖拽中除外，否则手感会断）
   window.addEventListener('blur', () => {
     for (const p of window.__pets || []) {
@@ -106,3 +132,12 @@ export function lockInteractive(on) {
   if (on) setInteractive(true);
   else schedule();
 }
+
+// 自检 / 排查用：把内部状态露出来（不影响正常运行）
+window.__desktop = {
+  hitTest,
+  capturing: () => interactive,
+  forced: () => forced,
+  holdLeft: () => Math.round(holdUntil - performance.now()),
+  probe: (x, y) => { px = x; py = y; schedule(); },
+};

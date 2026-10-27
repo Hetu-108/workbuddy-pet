@@ -263,6 +263,68 @@ async function runSelfTest() {
     } catch { /* 忽略探针失败 */ }
     const shot = await win.webContents.capturePage();
     fs.writeFileSync(SHOT_OUT.replace(/\.png$/, '-window.png'), shot.toPNG());
+    if (ARGV.includes('--pointer')) {
+      const res = await win.webContents.executeJavaScript(`(async () => {
+        const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+        const p = window.__pets[0];
+        const cap = () => document.body.dataset.petCapturing;
+        const center = () => {
+          const r = p.root.getBoundingClientRect();
+          return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+        };
+        const move = (x, y) => window.dispatchEvent(new MouseEvent('mousemove', { clientX: x, clientY: y, bubbles: true }));
+
+        const out = {};
+        if (p.roamRaf != null) p._stopRoam();
+        p.pos = p._anchorPixel();
+        p._applyPos(true);
+        await sleep(150);
+
+        // A 光标压在静止的鱼身上：应该接管（否则点不到它）
+        let q = center();
+        move(q.x, q.y);
+        await sleep(220);
+        out.staticHit = cap();
+
+        // B 鱼自己走开，鼠标一动不动：应该自动放开。这是「滚轮滚不动」的根因场景
+        p.pos = { x: Math.max(0, q.x - 700), y: Math.max(0, q.y - 320) };
+        p._applyPos(true);
+        await sleep(420);
+        out.afterMovingAway = cap();
+        out.hitNow = !!window.__desktop.hitTest(q.x, q.y);
+        out.forced = window.__desktop.forced();
+        out.holdLeft = window.__desktop.holdLeft();
+
+        // C 鱼正在漫游时经过光标：不应该接管
+        p.pos = p._anchorPixel();
+        p._applyPos(true);
+        await sleep(150);
+        out.roamReturn = p.roam();
+        await sleep(80);
+        q = center();
+        move(q.x, q.y);
+        await sleep(160);
+        out.duringRoam = cap();
+        out.roamRafActive = p.roamRaf != null;
+        if (p.roamRaf != null) p._stopRoam();
+        p.pos = p._anchorPixel();
+        p._applyPos(true);
+        await sleep(250);
+
+        // D 光标压在静止的鱼身上滚轮：应该马上让路，别把下面的滚动吞掉
+        q = center();
+        move(q.x, q.y);
+        await sleep(220);
+        out.beforeWheel = cap();
+        window.dispatchEvent(new WheelEvent('wheel', { deltaY: 120, bubbles: true, cancelable: true }));
+        await sleep(80);
+        out.afterWheel = cap();
+        await sleep(900);
+        out.afterMute = cap();   // 冷却结束、光标仍在鱼上：应该恢复接管，不然点不到它
+        return out;
+      })()`);
+      console.log('[pointer-test]', JSON.stringify(res));
+    }
     if (ARGV.includes('--roam')) {
       await win.webContents.executeJavaScript('window.__pets[0].roam()');
       await new Promise((r) => setTimeout(r, 4200));
@@ -318,6 +380,7 @@ async function runSelfTest() {
       const shot4 = await win.webContents.capturePage();
       fs.writeFileSync(SHOT_OUT.replace(/\.png$/, '-chat.png'), shot4.toPNG());
     }
+
     if (ARGV.includes('--click')) {      const res = await win.webContents.executeJavaScript(`(() => {
         const hit = document.querySelector('.pet-hit');
         const r = hit.getBoundingClientRect();
