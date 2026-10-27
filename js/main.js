@@ -3,6 +3,7 @@
 import { DEFAULT_CONFIG } from './config.js';
 import { Pet } from './pet.js';
 import { initDesktop } from './desktop.js';
+import { initChat } from './chat.js';
 import { sound, init as initSound, unlock, setEnabled, isEnabled, setVolume, state as soundState } from './sound.js';
 
 const app = Object.assign({}, DEFAULT_CONFIG);
@@ -50,6 +51,12 @@ const api = {
   roam(petId) { currentPet(petId).roam(); },
   sound(on) { setEnabled(on === undefined ? !isEnabled() : !!on); app.soundEnabled = isEnabled(); },
   volume(v) { setVolume(v); },
+  /** 打开对话框；传 text 则顺便发出去（控制台 / HTTP 都能用） */
+  chat(text) {
+    if (!window.wbChat) return false;
+    if (text) { window.wbChat.open(); window.wbChat.send(text); } else window.wbChat.open();
+    return true;
+  },
 };
 window.wbPet = api;
 window.__sound = { state: soundState, enabled: isEnabled, toggle: app.toggleSound };
@@ -96,6 +103,9 @@ function handleEvent(msg) {
     case 'home':
       window.__pets.forEach((p) => p.goHome());
       break;
+    case 'chat':
+      if (window.wbChat) window.wbChat.open();
+      break;
     case 'refresh':
       location.reload();
       break;
@@ -116,8 +126,10 @@ window.addEventListener('resize', () => {
   for (const p of window.__pets || []) p.onResize();
 });
 
-// 键盘：H 回家 / W 碎碎念（方便调试）
+// 键盘：H 回家 / W 碎碎念（方便调试）；正在输入时不要抢键
 window.addEventListener('keydown', (e) => {
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
   if (e.key === 'h' || e.key === 'H') api.home();
   if (e.key === 'w' || e.key === 'W') api.whisper();
 });
@@ -159,6 +171,11 @@ async function boot() {
   window.__pets = mount();
   for (const p of window.__pets) p.cfg.roamEnabled = desktop; // 只有桌面模式才全屏乱飘
   connectBridge();
+  // 对话：接上洛书的大脑（没接就是普通桌宠，输入条会说「没连上」）
+  app.chatApi = initChat(app);
+  if (window.wbDesktop && window.wbDesktop.onOpenChat) {
+    window.wbDesktop.onOpenChat(() => { if (window.wbChat) window.wbChat.open(); });
+  }
   if (desktop) {
     // 桌面模式：整窗透明铺满工作区，只在鱼身上接管鼠标
     initDesktop();

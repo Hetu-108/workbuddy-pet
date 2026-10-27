@@ -113,4 +113,35 @@ export const DEFAULT_CONFIG = {
 
   // ---------- 音效（WebAudio 合成，不需要音频文件） ----------
   sound: { enabled: true, volume: 0.34 },
+
+  // ---------- 对话（接「洛书」的大脑；不接就还是一只普通桌宠） ----------
+  // 走后端代理 api/chat，同源、不碰 CORS；真正的模型在 server.mjs 里转到 127.0.0.1:8765
+  chat: {
+    enabled: true,
+    endpoint: 'api/chat',
+    nudgeEndpoint: 'api/chat/nudge',
+    timeoutMs: 120000,          // 本地小模型冷启动可能要十几秒，别急着判死
+    proactiveMs: 1500000,       // 25 分钟没人理就自己说一句（0 = 关掉主动性）
+    bubbleMs: 14000,            // 回复在气泡里停留多久
+    hotkeyLabel: 'Ctrl+Alt+L',
+    placeholder: '跟她说点什么…',
+    // 情绪 → 动画（名字必须和 assets/webm 里的文件名完全一致）
+    emotionAnim: {
+      idle: '待机呼吸休闲',
+      think: '工作状态-思考冒泡',
+      happy: '点击回应-开心跃动',
+      shy: '点击回应-害羞惊讶',
+      angry: '点击回应-傲娇生气',
+      sleepy: '打瞌睡被惊醒',
+      surprised: '被吓一跳',
+    },
+    // 小动作 → 动画；none 表示不插播
+    actionAnim: {
+      none: null,
+      nod: '女仆屈膝礼仪',
+      wave: '点击回应-元气挥手',
+      jump: '点击回应-开心跃动',
+      shake: '点击回应-傲娇生气',
+    },
+  },
 };

@@ -197,7 +197,81 @@ body.wallpaper {
 
 .pet-menu-arrow { color: rgba(43, 43, 43, 0.45); font-size: 11px; }
 
+/* ---------- 对话输入条（Ctrl+Alt+L 唤起） ---------- */
+/* 默认隐藏且不占鼠标：窗口是穿透的，这条只在唤起时临时接管交互 */
+.pet-chat {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  transform: translate(-50%, 14px);
+  z-index: 2147482000;
+  width: min(560px, 76vw);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  font-family: 'ShangshouSoftCandy', 'Yuanti SC', 'YouYuan', 'PingFang SC', 'Microsoft YaHei UI', sans-serif;
+}
+
+.pet-chat.is-on {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+}
+
+.pet-chat-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 7px 7px 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid rgba(43, 43, 43, 0.08);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.14), 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.pet-chat-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 15px;
+  color: #2b2b2b;
+}
+
+.pet-chat-input::placeholder { color: rgba(43, 43, 43, 0.34); }
+.pet-chat-input:disabled { color: rgba(43, 43, 43, 0.38); }
+
+.pet-chat-btn {
+  flex: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 18px;
+  background: #2b2b2b;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.pet-chat-btn:hover { opacity: 0.86; }
+.pet-chat-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* 浅色壁纸上也读得清：给一行薄薄的白描边 */
+.pet-chat-tip {
+  margin-top: 7px;
+  min-height: 15px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 15px;
+  color: rgba(43, 43, 43, 0.5);
+  text-shadow: 0 1px 3px rgba(255, 255, 255, 0.95), 0 0 8px rgba(255, 255, 255, 0.8);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .pet-video { transition: none; }
   .pet-bubble { transition: none; }
+  .pet-chat { transition: none; }
 }

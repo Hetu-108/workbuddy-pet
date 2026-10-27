@@ -66,11 +66,6 @@ if (CDP_PORT) app.commandLine.appendSwitch('remote-debugging-port', String(CDP_P
 // 关掉它，保证没人操作时动画也照常跑。
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
-// 这只桌宠对 JS 堆的需求很小（页面逻辑 + 106 个动画名），但 V8 默认给每个进程留了
-// 很大的半空间（新生代），提交内存虚高。把上限压到够用就好，GC 更早收敛，真实占用更低。
-// 注意：只影响 JS 堆，视频解码和 GPU 纹理不在这条链路上。
-app.commandLine.appendSwitch('js-flags', '--max-old-space-size=128 --max-semi-space-size=4');
-
 // ---------------- 本地桥 ----------------
 function ping(timeout = 700) {
   return new Promise((resolve) => {
@@ -100,19 +95,10 @@ async function ensureBridge() {
 }
 
 // ---------------- 窗口 ----------------
-// 窗口只覆盖工作区底部这一段。鱼绝大部分时间贴底活动，上半屏绝大多数时候是空的，
-// 却要让核显为整块 per-pixel-alpha surface 保留帧缓冲，并且桌面上任何窗口刷新
-// 都要和这块全屏透明层重新合成一次——这是它拖慢整机、吃显存的主因。
-// 0.62 是实测折衷：面积省掉约四成，贴着底部对齐的观感完全不变。
-// 想恢复铺满整屏：启动前设环境变量 WBPET_WIN_H=1。
-const WIN_H_RATIO = Math.min(1, Math.max(0.35, Number(process.env.WBPET_WIN_H) || 0.62));
-
+// 整块工作区铺满，鱼可以在全屏任何位置活动（抛掷、漫游都能飞到屏幕上半部分）。
 function workArea() {
   const d = screen.getPrimaryDisplay();
-  const wa = d.workArea; // 不含任务栏，鱼正好站在任务栏上面
-  if (WIN_H_RATIO >= 0.999) return wa;
-  const h = Math.round(wa.height * WIN_H_RATIO);
-  return { x: wa.x, y: wa.y + wa.height - h, width: wa.width, height: h };
+  return d.workArea; // 不含任务栏，鱼正好站在任务栏上面
 }
 
 function createWindow() {
@@ -173,8 +159,17 @@ function setInteractive(next, viaDrag = false) {
   win.setIgnoreMouseEvents(!next, { forward: true });
 }
 
-function toggleWindow() {
-  if (!win) return;
+// 唤起对话框：先把窗口叫出来并拿到键盘焦点，再让页面把输入条亮起来。
+// 窗口平时是鼠标穿透的，但键盘焦点和穿透互不影响 —— 所以这里不动 setInteractive。
+function openChat() {
+  if (!win || win.isDestroyed()) return;
+  if (hidden || !win.isVisible()) { win.showInactive(); hidden = false; updateTray(); }
+  win.show();
+  win.focus();
+  win.webContents.send('wb:open-chat');
+}
+
+function toggleWindow() {  if (!win) return;
   if (win.isVisible() && !hidden) {
     win.hide();
     hidden = true;
@@ -223,6 +218,7 @@ function updateTray() {
     { label: visible ? '先藏起来（Ctrl+Alt+P）' : '让大肥鱼出来（Ctrl+Alt+P）', click: toggleWindow },
     { label: '回到右下角', click: () => send('home') },
     { label: '说句话', click: () => send('say') },
+    { label: '和它说话（Ctrl+Alt+L）', click: openChat },
     { type: 'separator' },
     { label: '开机自启', type: 'checkbox', checked: autostartEnabled(), click: (i) => setAutostart(i.checked) },
     { label: '在浏览器里打开（调样式用）', click: () => shell.openExternal(`${BASE}/?bg=1`) },
@@ -298,8 +294,31 @@ async function runSelfTest() {
       const s3 = await win.webContents.capturePage();
       fs.writeFileSync(SHOT_OUT.replace(/\.png$/, '-menu.png'), s3.toPNG());
     }
-    if (ARGV.includes('--click')) {
-      const res = await win.webContents.executeJavaScript(`(() => {
+    // 对话自检：--chat 会真的发一句话给大脑，等气泡出来再读数
+    if (ARGV.includes('--chat')) {
+      const sent = await win.webContents.executeJavaScript(`(() => {
+        if (!window.wbChat) return { err: 'no chat api' };
+        window.wbChat.open();
+        window.wbChat.send('你好呀，你在干什么');
+        return { ok: true };
+      })()`);
+      console.log('[chat-send]', JSON.stringify(sent));
+      await new Promise((r) => setTimeout(r, 15000));
+      const chat = await win.webContents.executeJavaScript(`(() => {
+        const p = window.__pets[0];
+        return {
+          bubble: p.bubText.textContent,
+          on: p.bubble.classList.contains('is-on'),
+          anim: p.anim,
+          busy: !!(window.wbChat && window.wbChat.busy),
+          tip: (document.querySelector('.pet-chat-tip') || {}).textContent || '',
+        };
+      })()`);
+      console.log('[chat-result]', JSON.stringify(chat));
+      const shot4 = await win.webContents.capturePage();
+      fs.writeFileSync(SHOT_OUT.replace(/\.png$/, '-chat.png'), shot4.toPNG());
+    }
+    if (ARGV.includes('--click')) {      const res = await win.webContents.executeJavaScript(`(() => {
         const hit = document.querySelector('.pet-hit');
         const r = hit.getBoundingClientRect();
         const x = r.left + r.width / 2, y = r.top + r.height / 2;
@@ -346,6 +365,7 @@ if (!app.requestSingleInstanceLock()) {
 
     globalShortcut.register('CommandOrControl+Alt+P', toggleWindow);
     globalShortcut.register('CommandOrControl+Alt+Q', () => app.quit());
+    globalShortcut.register('CommandOrControl+Alt+L', openChat);
 
     screen.on('display-metrics-changed', () => {
       if (win && !win.isDestroyed()) win.setBounds(workArea());
@@ -371,6 +391,12 @@ if (!app.requestSingleInstanceLock()) {
 
 // ---------------- IPC ----------------
 ipcMain.on('wb:interactive', (_e, v) => setInteractive(!!v));
+ipcMain.on('wb:focus', () => {
+  if (!win || win.isDestroyed()) return;
+  if (hidden || !win.isVisible()) { win.showInactive(); hidden = false; }
+  win.show();
+  win.focus();
+});
 ipcMain.on('wb:hide', () => { if (win) { win.hide(); hidden = true; updateTray(); } });
 ipcMain.on('wb:quit', () => app.quit());
 ipcMain.handle('wb:workarea', () => workArea());

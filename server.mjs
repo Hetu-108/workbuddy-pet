@@ -22,6 +22,10 @@ const argOf = (name, dflt) => {
 const PORT = Number(argOf('--port', process.env.WB_PET_PORT || 7715));
 const OPEN = argv.includes('--open');
 
+// 「大脑」地址：洛书仓库里的 pet_bridge.py。写在服务端而不是页面里，
+// 好处是页面只跟同源的 /api/chat 打交道，不用碰 CORS，也不用把地址散在前端。
+const BRAIN = (process.env.WB_PET_BRAIN || 'http://127.0.0.1:8765').replace(/\/+$/, '');
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -69,8 +73,37 @@ function readBody(req) {
   });
 }
 
-async function listMemes() {
-  try {
+// ---- 大脑代理（零依赖，只用 node:http） ----
+// 与洛书那边的 pet_bridge.py 通话；它没起的时候不要卡住页面，直接快速失败。
+function brainRequest(pathname, payload, timeout = 130000) {
+  return new Promise((resolve, reject) => {
+    let u;
+    try { u = new URL(BRAIN + pathname); } catch { return reject(new Error('大脑地址不合法：' + BRAIN)); }
+    const data = payload === undefined ? null : JSON.stringify(payload);
+    const req = http.request({
+      hostname: u.hostname,
+      port: u.port || 80,
+      path: u.pathname + u.search,
+      method: data ? 'POST' : 'GET',
+      headers: data ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(data) } : {},
+    }, (rs) => {
+      let buf = '';
+      rs.setEncoding('utf8');
+      rs.on('data', (c) => { buf += c; });
+      rs.on('end', () => {
+        let body;
+        try { body = JSON.parse(buf); } catch { body = { ok: false, error: (buf || '空响应').slice(0, 300) }; }
+        resolve({ status: rs.statusCode || 200, body });
+      });
+    });
+    req.on('error', (e) => reject(e));
+    req.setTimeout(timeout, () => req.destroy(new Error('大脑响应超时')));
+    if (data) req.write(data);
+    req.end();
+  });
+}
+
+async function listMemes() {  try {
     const files = await fsp.readdir(path.join(ROOT, 'assets', 'memes'));
     return files.filter((f) => f.toLowerCase().endsWith('.png')).map((f) => f.slice(0, -4));
   } catch {
@@ -137,6 +170,16 @@ const server = http.createServer(async (req, res) => {
     return json(res, 200, state);
   }
 
+  // 大脑探活：桌宠页面可以用它判断「要不要显示聊天入口」
+  if (p === '/api/chat/health') {
+    try {
+      const r = await brainRequest('/health');
+      return json(res, 200, { ok: r.status === 200, brain: BRAIN, ...r.body });
+    } catch (e) {
+      return json(res, 200, { ok: false, brain: BRAIN, error: String((e && e.message) || e) });
+    }
+  }
+
   if (req.method === 'POST') {
     const raw = await readBody(req);
     let body = {};
@@ -186,6 +229,23 @@ const server = http.createServer(async (req, res) => {
       case '/api/log':
         console.log('[wb-pet][client] ' + String(body.text || '').slice(0, 800));
         return json(res, 200, { ok: true });
+      case '/api/chat':
+      case '/api/chat/nudge': {
+        const text = String(body.text || '');
+        try {
+          // 只有 /chat 需要台词，/nudge 由大脑自己造一句
+          const r = await brainRequest(p === '/api/chat' ? '/chat' : '/nudge',
+            p === '/api/chat' ? { text } : { idle: Number(body.idle) || 0 });
+          return json(res, r.status, r.body);
+        } catch (e) {
+          const msg = String((e && e.message) || e);
+          const hint = /ECONNREFUSED|ENOTFOUND|connect/i.test(msg)
+            ? `连不上大脑 ${BRAIN}：先在洛书仓库里跑 python pet_bridge.py`
+            : msg;
+          console.log('[wb-pet] chat 失败：' + hint);
+          return json(res, 502, { ok: false, error: hint });
+        }
+      }
       case '/api/refresh':
         broadcast({ type: 'refresh' });
         return json(res, 200, { ok: true });
@@ -209,6 +269,7 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, '127.0.0.1', () => {
   const urlStr = `http://127.0.0.1:${PORT}/`;
   console.log(`[wb-pet] 大肥鱼已就位：${urlStr}`);
+  console.log(`[wb-pet] 大脑：${BRAIN}（没起也不影响它自己玩）`);
   console.log('[wb-pet] 控制示例：');
   console.log(`  curl -X POST ${urlStr}api/state -H "content-type: application/json" -d "{\\"state\\":\\"working\\"}"`);
   console.log(`  curl -X POST ${urlStr}api/say   -H "content-type: application/json" -d "{\\"text\\":\\"我在呢\\"}"`);
