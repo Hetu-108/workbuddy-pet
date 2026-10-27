@@ -66,6 +66,11 @@ if (CDP_PORT) app.commandLine.appendSwitch('remote-debugging-port', String(CDP_P
 // 关掉它，保证没人操作时动画也照常跑。
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
+// 这只桌宠对 JS 堆的需求很小（页面逻辑 + 106 个动画名），但 V8 默认给每个进程留了
+// 很大的半空间（新生代），提交内存虚高。把上限压到够用就好，GC 更早收敛，真实占用更低。
+// 注意：只影响 JS 堆，视频解码和 GPU 纹理不在这条链路上。
+app.commandLine.appendSwitch('js-flags', '--max-old-space-size=128 --max-semi-space-size=4');
+
 // ---------------- 本地桥 ----------------
 function ping(timeout = 700) {
   return new Promise((resolve) => {
@@ -95,9 +100,19 @@ async function ensureBridge() {
 }
 
 // ---------------- 窗口 ----------------
+// 窗口只覆盖工作区底部这一段。鱼绝大部分时间贴底活动，上半屏绝大多数时候是空的，
+// 却要让核显为整块 per-pixel-alpha surface 保留帧缓冲，并且桌面上任何窗口刷新
+// 都要和这块全屏透明层重新合成一次——这是它拖慢整机、吃显存的主因。
+// 0.62 是实测折衷：面积省掉约四成，贴着底部对齐的观感完全不变。
+// 想恢复铺满整屏：启动前设环境变量 WBPET_WIN_H=1。
+const WIN_H_RATIO = Math.min(1, Math.max(0.35, Number(process.env.WBPET_WIN_H) || 0.62));
+
 function workArea() {
   const d = screen.getPrimaryDisplay();
-  return d.workArea; // 不含任务栏，鱼正好站在任务栏上面
+  const wa = d.workArea; // 不含任务栏，鱼正好站在任务栏上面
+  if (WIN_H_RATIO >= 0.999) return wa;
+  const h = Math.round(wa.height * WIN_H_RATIO);
+  return { x: wa.x, y: wa.y + wa.height - h, width: wa.width, height: h };
 }
 
 function createWindow() {
